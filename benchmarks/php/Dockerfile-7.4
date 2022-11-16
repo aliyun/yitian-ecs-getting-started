@@ -1,0 +1,10 @@
+FROM php:7.4-cli-alpine
+
+WORKDIR /wd
+
+COPY bench.php bench.php
+COPY micro_bench.php micro_bench.php
+COPY run.sh run.sh
+COPY benchmark.sh benchmark.sh
+
+ENTRYPOINT ./benchmark.sh

@@ -1,0 +1,16 @@
+#### Build tensorflow base image
+
+FROM ubuntu:22.04
+
+RUN sed -i -E 's/(security|archive|ports).ubuntu.com/mirrors.ustc.edu.cn/g' /etc/apt/sources.list
+
+RUN apt update && apt install --no-install-recommends -y python3-pip
+
+ARG TENSORFLOW_PACKAGE
+RUN case $(uname -m) in \
+        aarch64) TENSORFLOW_PACKAGE=tensorflow-cpu-aws ;; \
+        *) TENSORFLOW_PACKAGE=tensorflow-cpu ;; \
+    esac && \
+    pip3 install --no-cache-dir -i https://pypi.mirrors.ustc.edu.cn/simple ${TENSORFLOW_PACKAGE}
+
+# RUN find /usr/lib/python3.10 -name '*.pyc' -delete && find /usr/local/lib/python3.10 -name '*.pyc' -delete && rm -rf /tmp/* /var/lib/apt/* /var/cache/* /var/log/*

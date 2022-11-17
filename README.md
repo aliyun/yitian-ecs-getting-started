@@ -31,7 +31,6 @@
 请访问[基准测试介绍](benchmarks/benchmarks.md)获取测试信息及docker安装方法，具体包括：
 
    - [kafka](benchmarks/kafka/kafka.md)
-   - [numpy](benchmarks/numpy/numpy.md)
    - [openblas](benchmarks/openblas/openblas.md)
    - [php](benchmarks/php/php.md)
    - [tensorflow](benchmarks/tensorflow/tensorflow.md)

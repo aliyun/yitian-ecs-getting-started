@@ -1,0 +1,91 @@
+#### compile stage
+FROM ubuntu:22.04 AS compile-image
+
+RUN sed -i -E 's/(security|archive|ports).ubuntu.com/mirrors.ustc.edu.cn/g' /etc/apt/sources.list
+RUN apt update && apt install -y build-essential cmake git python3-pip scons wget
+
+WORKDIR /root
+COPY patches patches
+
+# Build OpenBLAS
+RUN git clone https://github.com/xianyi/OpenBLAS.git --depth=1
+RUN cd OpenBLAS && DYNAMIC_ARCH=1 USE_OPENMP=1 make -j32 && make PREFIX=/opt/OpenBLAS install
+
+# Build ACL
+RUN git clone https://review.mlplatform.org/ml/ComputeLibrary.git
+
+WORKDIR /root/ComputeLibrary
+
+RUN git checkout v22.11
+RUN patch -p1 < ../patches/acl_fixed_format_kernels_striding.patch
+RUN patch -p1 < ../patches/acl_openmp_fix.patch
+
+RUN scons -j32 Werror=0 debug=0 neon=1 opencl=0 embed_kernels=0 \
+  os=linux arch=armv8.2-a build=native multi_isa=1 \
+  experimental_fixed_format_kernels=1 openmp=1 cppthreads=0 \
+  build_dir=/opt/ComputeLibrary/build
+
+RUN cp -r arm_compute /opt/ComputeLibrary && cp -r src /opt/ComputeLibrary && cp -r include /opt/ComputeLibrary \
+    && cp -r utils /opt/ComputeLibrary && cp -r support /opt/ComputeLibrary
+
+ENV ACL_ROOT_DIR=/opt/ComputeLibrary
+
+# Build PyTorch
+WORKDIR /root
+
+# Slow cloning due to network problems(China Mainland), so we use tar.gz
+COPY pytorch-v1.13.0.tar.gz /root/
+RUN tar -zxvf pytorch-v1.13.0.tar.gz
+WORKDIR /root/pytorch-v1.13.0
+
+# RUN git clone https://github.com/pytorch/pytorch.git
+# WORKDIR /root/pytorch
+# RUN git checkout v1.13.0 -b v1.13.0
+# RUN git submodule sync
+# RUN git submodule update --init --recursive
+
+WORKDIR third_party/ideep
+RUN patch -p1 < /root/patches/ideep.patch
+
+WORKDIR mkl-dnn/third_party
+RUN rm -rf oneDNN && git clone https://github.com/oneapi-src/oneDNN.git
+WORKDIR oneDNN
+RUN git checkout v2.7
+RUN patch -p1 < /root/patches/onednn.patch
+RUN patch -p1 < /root/patches/onednn_acl_fixed_format_kernels.patch
+RUN patch -p1 < /root/patches/onednn_acl_depthwise_convolution.patch
+RUN patch -p1 < /root/patches/onednn_reorder_padded.patch
+RUN patch -p1 < /root/patches/onednn_reorder_update.patch
+RUN patch -p1 < /root/patches/onednn_reorder_to_bf16.patch
+
+WORKDIR /root/pytorch-v1.13.0
+RUN patch -p1 < /root/patches/blas_to_mkl_acl.patch
+
+RUN pip3 config set global.index-url https://pypi.douban.com/simple/
+RUN pip3 install --no-cache-dir --upgrade pip
+RUN pip3 install --no-cache-dir astunparse pyyaml typing_extensions numpy cffi setuptools future six requests dataclasses
+
+RUN MAX_JOBS=32 PYTORCH_BUILD_VERSION=1.13.0 USE_MKLDNN="ON" USE_MKLDNN_ACL="ON" \
+    ACL_ROOT_DIR=/opt/ComputeLibrary PYTORCH_BUILD_NUMBER=1 \
+    OpenBLAS_HOME=/opt/OpenBLAS BLAS="OpenBLAS" \
+    CXX_FLAGS="-mcpu=neoverse-n2 -march=armv8.5-a -O3" USE_OPENMP=1 \
+    USE_LAPACK=1 USE_CUDA=0 USE_FBGEMM=0 USE_DISTRIBUTED=0 python3 setup.py bdist_wheel
+RUN pip3 install dist/*.whl
+
+WORKDIR /root
+RUN git clone -b v0.14.0 --depth=1 https://github.com/pytorch/vision.git
+RUN cd vision && BUILD_VERSION=0.14.0 python3 setup.py bdist_wheel
+
+#### runtime image
+FROM ubuntu:22.04 AS runtime-image
+
+COPY --from=compile-image /opt/OpenBLAS /opt/OpenBLAS
+COPY --from=compile-image /opt/ComputeLibrary /opt/ComputeLibrary
+COPY --from=compile-image /root/pytorch-v1.13.0/dist/*.whl /root/
+COPY --from=compile-image /root/vision/dist/*.whl /root/
+
+RUN sed -i -E 's/(security|archive|ports).ubuntu.com/mirrors.ustc.edu.cn/g' /etc/apt/sources.list
+RUN apt update && apt install --no-install-recommends -y libgomp1 libstdc++6 python3-pip
+
+RUN pip3 config set global.index-url https://pypi.douban.com/simple/
+RUN pip3 install numpy /root/*.whl

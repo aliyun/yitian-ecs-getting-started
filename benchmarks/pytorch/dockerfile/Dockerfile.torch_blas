@@ -1,0 +1,37 @@
+#### compile stage
+FROM ubuntu:22.04 AS compile-image
+
+RUN sed -i -E 's/(security|archive|ports).ubuntu.com/mirrors.ustc.edu.cn/g' /etc/apt/sources.list
+RUN apt update && apt install --no-install-recommends -y build-essential cmake python3-pip python3-dev git
+
+RUN pip3 install --no-cache-dir -i https://pypi.mirrors.ustc.edu.cn/simple \
+        astunparse pyyaml typing_extensions numpy cffi setuptools future six requests dataclasses
+
+WORKDIR /tmp
+
+RUN git clone -b pr3846 --depth=1 https://github.com/imzhuhl/OpenBLAS.git
+RUN git clone -b v0.14.0 --depth=1 https://github.com/pytorch/vision.git
+COPY pytorch-v1.13.0.tar.gz torch_fpmath.patch /tmp/
+RUN tar -zxvf pytorch-v1.13.0.tar.gz
+
+WORKDIR /tmp/OpenBLAS
+RUN DYNAMIC_ARCH=0 BUILD_BFLOAT16=1 USE_OPENMP=1 make -j32 && make install
+
+WORKDIR /tmp/pytorch-v1.13.0
+RUN patch -p1 < ../torch_fpmath.patch
+RUN PYTORCH_BUILD_VERSION=1.13.0 PYTORCH_BUILD_NUMBER=1 BUILD_TEST=OFF MAX_JOBS=32 USE_CUDA=0 \
+    USE_CUDNN=0 USE_FBGEMM=0 USE_MKLDNN=0 USE_NNPACK=0 python3 setup.py install bdist_wheel
+
+WORKDIR /tmp/vision
+RUN BUILD_VERSION=0.14.0 python3 setup.py bdist_wheel
+
+#### runtime image
+FROM ubuntu:22.04 AS runtime-image
+COPY --from=compile-image /opt/OpenBLAS /opt/OpenBLAS
+COPY --from=compile-image /tmp/pytorch-v1.13.0/dist/*.whl /tmp/
+COPY --from=compile-image /tmp/vision/dist/*.whl /tmp/
+
+RUN apt update && apt install --no-install-recommends -y libgomp1 libstdc++6 python3-pip
+RUN pip3 install numpy --no-cache-dir -i https://pypi.mirrors.ustc.edu.cn/simple
+RUN pip3 install tmp/*.whl --no-cache-dir -i https://pypi.mirrors.ustc.edu.cn/simple
+

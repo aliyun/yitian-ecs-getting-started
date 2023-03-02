@@ -1,0 +1,12 @@
+FROM accc-registry.cn-hangzhou.cr.aliyuncs.com/pytorch/pytorch:torch1.13.0_acl
+
+WORKDIR /root
+COPY resnet50 resnet50
+COPY maskrcnn maskrcnn
+COPY ssd ssd
+COPY bert bert
+COPY run_benchmark.sh run_benchmark.sh
+
+RUN pip install pandas transformers --no-cache-dir -i https://pypi.mirrors.ustc.edu.cn/simple
+
+ENTRYPOINT chmod +x run_benchmark.sh && ./run_benchmark.sh acl

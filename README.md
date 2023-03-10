@@ -17,6 +17,7 @@
    - [智能化性能调优工具Keentune](Keentune.md)
    - [Java诊断工具Eclipse Jifa](Jifa.md)
    - [Java版本升级工具Eclipse Migration Toolkit for Java](EMT4J.md)
+* [跨架构构建指引](CrossCompile.md)
 
 # 倚天云服务器基本信息
 请访问[阿里云倚天云服务器官方页面](https://www.aliyun.com/product/ecs/yitian)获取相关信息

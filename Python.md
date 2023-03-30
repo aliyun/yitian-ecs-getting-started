@@ -144,11 +144,9 @@ docker run --rm cape2/numpy:latest
 
 # 3. 深度学习库 
 
-## 3.1 使用 Docker 镜像
+## 3.1 TensorFlow
 
-**armswdev** 是arm提供的软件解决方案仓库，提供了在arm平台上的软件适配以及高性能实现。
-
-**使用 Tensorflow 镜像**
+### 3.1.1 使用 TensorFlow 镜像
 
 ```bash
 # 开启 OneDNN+ACL 优化的 tensorflow 镜像
@@ -161,32 +159,25 @@ docker run -it --rm -v $HOME:/hostfs armswdev/tensorflow-arm-neoverse
 cd /hostfs
 python your_code.py
 ```
+**armswdev** 是 arm 提供的软件解决方案仓库，提供了在 arm 平台上的软件适配以及高性能实现。
 
-**使用 PyTorch 镜像**
+### 3.1.2 使用 pip 安装 TensorFlow
 
-使用方式与 Tensorflow 同理：
+建议使用 pip 安装最近几个版本的 TensorFlow，例如 2.10.1 或者 2.11.0，这些版本包含 OneDNN 和 Arm Compute Library (ACL) 的支持。
+
 ```bash
-docker pull armswdev/pytorch-arm-neoverse
-docker run -d -v $HOME:/hostfs -it armswdev/pytorch-arm-neoverse
+pip install tensorflow==2.11.0
 ```
 
-## 3.2 使用 pip 安装
-
-最新版本的 Tensorflow(2.10.0) 和 PyTorch(1.13.0) 可以使用 pip 包管理器安装，已经包含 OneDNN 和 ACL 的支持。
-```bash
-pip install tensorflow==2.10.0
-pip install pytorch==1.13.0
-```
-
-## 3.3 实践案例
+### 3.1.3 实践案例
 
 Tensorflow 模型推理优化：
-1. 使用 OneDNN + ACL 后端的 tensorflow，获得针对倚天平台的优化
+1. 使用 OneDNN + ACL 后端的 TensorFlow，获得针对倚天平台的优化
 2. 避免在推理中使用 eager 模式
 3. 模型参数冻结
 4. 开启 BF16 优化
 
-以测试图像分类任务 resnet50 模型的推理性能为例：
+以测试图像分类任务 ResNet 50 模型的推理性能为例：
 ```python
 from tensorflow.keras.applications.resnet import ResNet50
 
@@ -207,8 +198,74 @@ e = time.time()
 print(f"inference: {e-s} s")
 ```
 
-运行代码时开启 BF16 优化，能显著提升推理性能，但会降低参数精度：
+运行代码时通过环境变量，开启 OneDNN 实现，并开启 BF16 优化，能显著提升推理性能：
 ```bash
 TF_ENABLE_ONEDNN_OPTS=1 ONEDNN_DEFAULT_FPMATH_MODE=BF16 python your_code.py
 ```
 
+## 4.1 PyTorch
+
+### 4.1.1 使用 PyTorch 镜像
+
+aliyun 提供针对倚天平台的 PyTorch 镜像，当前有两个可选的计算后端：OpenBLAS 或者 Arm Compute Library (ACL)。 在不同的 benchmark 上，两者的性能表现互有高低，因此同时提供两个计算后端的 PyTorch 供用户选择。
+
+```bash
+# 带 ACL 的 PyTorch 镜像
+docker pull accc-registry.cn-hangzhou.cr.aliyuncs.com/pytorch/pytorch:torch1.13.0_acl
+
+# 带 OpenBLAS 的 PyTorch 镜像
+docker pull accc-registry.cn-hangzhou.cr.aliyuncs.com/pytorch/pytorch:torch1.13.0_openblas
+```
+
+arm 提供的 [PyTorch 镜像](https://hub.docker.com/r/armswdev/pytorch-arm-neoverse)：
+```bash
+docker pull armswdev/tensorflow-arm-neoverse:r23.02-torch-1.13.0-onednn-acl
+docker pull armswdev/tensorflow-arm-neoverse:r23.02-torch-1.13.0-openblas
+```
+
+### 4.1.2 使用 pip 安装 PyTorch
+
+建议使用 pip 安装最近两个版本的 PyTorch (1.13.0 和 1.13.1)，这两个版本包含 OneDNN 和 Arm Compute Library (ACL) 的支持。
+
+```bash
+pip install pytorch==1.13.0
+```
+
+### 4.1.3 推理性能测试
+
+**测试资源**
+
+| 机型规格 | 用途 | vCPU | 内存 | 数据盘 | 操作系统 |
+| ---- | ---- | ---- | ---- | ---- | ----|
+| g8y.2xlarge | 性能测试 | 8 | 32 | 40 | alinux3 |
+| g7.2xlarge | 性能测试 | 8 | 32 | 40 | alinux3 |
+
+**测试模型**
+
+本次测试包含四个任务
+- ResNet-50
+  - 图像分类任务，预测图像类别
+- SSD300-VGG16
+  - 目标检测任务，检测图像中的物体，并给出每个物体的类别
+- Mask R-CNN
+  - 图像分割任务，将图像中的物体与背景分割，同时显示检测框和物体的类别
+- BERT
+  - 自然语言处理，问答任务
+
+**运行测试镜像**
+
+```bash
+# 拉取镜像
+docker pull accc-registry.cn-hangzhou.cr.aliyuncs.com/pytorch/pytorch:modelzoo
+# 启动推理任务
+docker run --rm accc-registry.cn-hangzhou.cr.aliyuncs.com/pytorch/pytorch:modelzoo
+```
+
+等待运行结束，记录各个模型的推理耗时，单位秒。测试结果如下（供参考）：
+
+| 测试用例 | g7 | g8y | g8y/g7性能提升 |
+| --- | --- | --- | --- |
+| ResNet-50	    | 0.9272	| 0.6706	| 1.38x |
+| SSD300-VGG16	| 1.2970	| 1.0245	| 1.27x |
+| Mask R-CNN	  | 11.0674	| 9.2872	| 1.19x |
+| BERT	        | 15.7978	| 10.7488 | 1.46x |

@@ -1,0 +1,235 @@
+diff --git a/aten/src/ATen/native/CPUBlas.cpp b/aten/src/ATen/native/CPUBlas.cpp
+index 13593a3379..63a036ada5 100644
+--- a/aten/src/ATen/native/CPUBlas.cpp
++++ b/aten/src/ATen/native/CPUBlas.cpp
+@@ -157,6 +157,40 @@ void gemm(
+       transa, transb, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc);
+ }
+ 
++#if defined(__ARM_NEON) && defined(__ARM_BF16)
++void matrix_fp32_to_bf16(
++    const float* src,
++    int64_t m,
++    int64_t n,
++    int64_t lda,
++    uint16_t* dst,
++    size_t len) {
++  // Matrix src is ColMajor, m x n in logical, and `lda` is the physical size of
++  // the leading dimensions. 
++  float32x4_t s1;
++  bfloat16x4_t d1;
++  int64_t idx = 0;
++  const float *psrc = src;
++  for (int64_t j = 0; j < n; j++) {
++    int64_t rest = m % 4;
++    size_t i = 0;
++    for (; i < m - rest; i += 4) {
++      s1 = vld1q_f32(psrc + i);
++      d1 = vcvt_bf16_f32(s1);
++      vst1_u16(dst + idx, vreinterpret_u16_bf16(d1));
++      idx += 4;
++    }
++    while (i < m) {
++      bfloat16_t tmp = vcvth_bf16_f32(psrc[i]);
++      std::memcpy(dst+idx, &tmp, sizeof(tmp));
++      idx++;
++      i++;
++    }
++    psrc += lda;
++  }
++}
++#endif
++
+ void gemm(
+     TransposeType transa, TransposeType transb,
+     int64_t m, int64_t n, int64_t k,
+@@ -183,6 +217,39 @@ void gemm(
+       c, ldc_);
+     #else
+     char transa_ = to_blas(transa), transb_ = to_blas(transb);
++    #if defined(BLAS_HAS_SBGEMM) && defined(__ARM_NEON) && defined(__ARM_BF16)
++    if (at::globalContext().float32MatmulPrecision() == at::Float32MatmulPrecision::MEDIUM) {
++      std::vector<uint16_t> bf16_a(m_ * k_);
++      std::vector<uint16_t> bf16_b(k_ * n_);
++
++      if (transa == TransposeType::NoTranspose) {
++        matrix_fp32_to_bf16(a, m_, k_, lda_, bf16_a.data(), bf16_a.size());
++        lda_ = m_;
++      } else {
++        matrix_fp32_to_bf16(a, k_, m_, lda_, bf16_a.data(), bf16_a.size());
++        lda_ = k_;
++      }
++
++      if (transb == TransposeType::NoTranspose) {
++        matrix_fp32_to_bf16(b, k_, n_, ldb_, bf16_b.data(), bf16_b.size());
++        ldb_ = k_;
++      } else {
++        matrix_fp32_to_bf16(b, n_, k_, ldb_, bf16_b.data(), bf16_b.size());
++        ldb_ = n_;
++      }
++
++      // c10::detail::array_cvt_from_f32(a, bf16_a.data(), bf16_a.size());
++      // c10::detail::array_cvt_from_f32(b, bf16_b.data(), bf16_b.size());
++      sbgemm_(&transa_, &transb_,
++              &m_, &n_, &k_,
++              &alpha_,
++              (at::BFloat16 *) bf16_a.data(), &lda_,
++              (at::BFloat16 *) bf16_b.data(), &ldb_,
++              &beta_,
++              c, &ldc_);
++      return;
++    }
++    #endif
+     sgemm_(
+         &transa_, &transb_,
+         &m_, &n_, &k_,
+diff --git a/aten/src/ATen/native/LinearAlgebra.cpp b/aten/src/ATen/native/LinearAlgebra.cpp
+index c658d4427c..8439564498 100644
+--- a/aten/src/ATen/native/LinearAlgebra.cpp
++++ b/aten/src/ATen/native/LinearAlgebra.cpp
+@@ -1564,7 +1564,7 @@ static inline void bmm_out_or_baddbmm_(const Tensor& self_or_result_, const Tens
+             && self_or_result.is_contiguous()) {
+     baddbmm_with_gemm_(self_or_result, batch1, batch2, beta, alpha);
+   } else { // split along batch dimension
+-#ifdef C10_MOBILE
++// #ifdef C10_MOBILE
+     /*
+      * We only do multithreading when Inference mode is enabled because various
+      * thread local state is not appropriately propagated through
+@@ -1587,9 +1587,9 @@ static inline void bmm_out_or_baddbmm_(const Tensor& self_or_result_, const Tens
+     // various matrix sizes on Samsung S8U
+     const bool enable_multithreaded_bmm = c10::InferenceMode::is_enabled() &&
+         bs >= 4 && res_rows >= 4 && res_cols >= 16 && contraction_size >= 16;
+-#else
+-    const bool enable_multithreaded_bmm{false};
+-#endif
++// #else
++    // const bool enable_multithreaded_bmm{false};
++// #endif
+     if (is_bmm_out) {
+       if (enable_multithreaded_bmm) {
+         auto bmm_out_fn = [&](uint64_t start, uint64_t end) {
+diff --git a/c10/util/BFloat16.h b/c10/util/BFloat16.h
+index 1ada02bba1..55d2aa8bbb 100644
+--- a/c10/util/BFloat16.h
++++ b/c10/util/BFloat16.h
+@@ -11,6 +11,10 @@
+ #include <cuda_bf16.h>
+ #endif
+ 
++#if defined(__ARM_NEON)
++#include <arm_neon.h>
++#endif
++
+ namespace c10 {
+ 
+ namespace detail {
+@@ -68,6 +72,30 @@ inline C10_HOST_DEVICE uint16_t round_to_nearest_even(float src) {
+     return static_cast<uint16_t>((U32 + rounding_bias) >> 16);
+   }
+ }
++
++inline C10_HOST_DEVICE void array_cvt_from_f32(const float *src, uint16_t *dst, size_t len) {
++#if defined(__ARM_NEON) && defined(__ARM_BF16)
++  float32x4_t s1;
++  bfloat16x4_t d1;
++  size_t rest = len % 4;
++  size_t i = 0;
++  for (i = 0; i < len - rest; i += 4) {  // 4 elems
++    s1 = vld1q_f32(src+i);
++    d1 = vcvt_bf16_f32(s1);
++    vst1_u16(dst+i, vreinterpret_u16_bf16(d1));
++  }
++  while (i < len) {  // tail case
++    bfloat16_t tmp = vcvth_bf16_f32(src[i]);
++    std::memcpy(dst+i, &tmp, sizeof(tmp));
++    i++;
++  }
++#else
++  for (size_t i = 0; i < len; i++) {
++    dst[i] = c10::detail::round_to_nearest_even(src[i]);
++  }
++#endif
++}
++
+ } // namespace detail
+ 
+ struct alignas(2) BFloat16 {
+diff --git a/cmake/Dependencies.cmake b/cmake/Dependencies.cmake
+index 49b7fd5025..8e7d904415 100644
+--- a/cmake/Dependencies.cmake
++++ b/cmake/Dependencies.cmake
+@@ -263,6 +263,10 @@ if(NOT INTERN_BUILD_MOBILE)
+     endif()
+   endif()
+ 
++  IF(BLAS_HAS_SBGEMM)
++    add_compile_options(-DBLAS_HAS_SBGEMM)
++  ENDIF(BLAS_HAS_SBGEMM)
++
+   if(MKL_FOUND)
+     if("${MKL_THREADING}" STREQUAL "SEQ")
+       set(AT_MKL_SEQUENTIAL 1)
+@@ -1718,8 +1722,13 @@ if(NOT INTERN_BUILD_MOBILE)
+   # ARM specific flags
+   find_package(ARM)
+   if(ASIMD_FOUND)
+-    message(STATUS "asimd/Neon found with compiler flag : -D__NEON__")
+-    add_compile_options(-D__NEON__)
++    if(BF16_FOUND)
++      message(STATUS "asimd+bf16 found with compiler flag : -D__NEON__ -D__ARM_BF16")
++      add_compile_options(-march=native -D__NEON__ -D__ARM_BF16)
++    else()
++      message(STATUS "asimd/Neon found with compiler flag : -D__NEON__")
++      add_compile_options(-march=native -D__NEON__)
++    endif()
+   elseif(NEON_FOUND)
+     message(STATUS "Neon found with compiler flag : -mfpu=neon -D__NEON__")
+     add_compile_options(-mfpu=neon -D__NEON__)
+diff --git a/cmake/Modules/FindARM.cmake b/cmake/Modules/FindARM.cmake
+index 2e55087160..d35e89c1a6 100644
+--- a/cmake/Modules/FindARM.cmake
++++ b/cmake/Modules/FindARM.cmake
+@@ -18,6 +18,14 @@ IF(CMAKE_SYSTEM_NAME MATCHES "Linux")
+    STRING(COMPARE EQUAL "asimd" "${ASIMD_THERE}" ASIMD_TRUE)
+    IF (ASIMD_TRUE)
+       set(ASIMD_FOUND true CACHE BOOL "ASIMD/NEON available on host")
++      # bf16 extension
++      STRING(REGEX REPLACE "^.*(bf16).*$" "\\1" BF16_THERE ${CPUINFO})
++      STRING(COMPARE EQUAL "bf16" "${BF16_THERE}" BF16_TRUE)
++      IF (BF16_TRUE)
++         set(BF16_FOUND true CACHE BOOL "ASIMD+BF16 available on host")
++      ELSE (BF16_TRUE)
++         set(BF16_FOUND false CACHE BOOL "ASIMD+BF16 available on host")
++      ENDIF (BF16_TRUE)
+    ELSE (ASIMD_TRUE)
+       set(ASIMD_FOUND false CACHE BOOL "ASIMD/NEON available on host")
+    ENDIF (ASIMD_TRUE)
+diff --git a/cmake/Modules/FindBLAS.cmake b/cmake/Modules/FindBLAS.cmake
+index 4d5007c625..73387b8260 100644
+--- a/cmake/Modules/FindBLAS.cmake
++++ b/cmake/Modules/FindBLAS.cmake
+@@ -390,9 +390,6 @@ IF(BLAS_LIBRARIES)
+   SET(CMAKE_REQUIRED_LIBRARIES ${BLAS_LIBRARIES})
+   check_function_exists("sbgemm_" BLAS_HAS_SBGEMM)
+   set(CMAKE_REQUIRED_LIBRARIES)
+-  IF(BLAS_HAS_SBGEMM)
+-    add_compile_options(-DBLAS_HAS_SBGEMM)
+-  ENDIF(BLAS_HAS_SBGEMM)
+ ENDIF(BLAS_LIBRARIES)
+ 
+ # epilogue
+diff --git a/cmake/Modules/FindOpenBLAS.cmake b/cmake/Modules/FindOpenBLAS.cmake
+index c909ace0a1..3cf266c1ce 100644
+--- a/cmake/Modules/FindOpenBLAS.cmake
++++ b/cmake/Modules/FindOpenBLAS.cmake
+@@ -51,6 +51,9 @@ IF (OpenBLAS_FOUND)
+   IF (NOT OpenBLAS_FIND_QUIETLY)
+     MESSAGE(STATUS "Found OpenBLAS libraries: ${OpenBLAS_LIB}")
+     MESSAGE(STATUS "Found OpenBLAS include: ${OpenBLAS_INCLUDE_DIR}")
++    SET(CMAKE_REQUIRED_LIBRARIES ${OpenBLAS_LIB})
++    check_function_exists("sbgemm_" BLAS_HAS_SBGEMM)
++    SET(CMAKE_REQUIRED_LIBRARIES)
+   ENDIF (NOT OpenBLAS_FIND_QUIETLY)
+ ELSE (OpenBLAS_FOUND)
+   IF (OpenBLAS_FIND_REQUIRED)

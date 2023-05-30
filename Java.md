@@ -92,6 +92,6 @@ Java工程常用的构建工具如maven等均为架构无关，因此这方面�
 JDK11相对JDK8改动较大，存在一定的升级工作量。为了解决这个问题阿里云提供了专项升级工具EMT4J(Eclipse Migration Toolkit for Java)，可以大大加速不同JDK长期支持版本(8/11/17)的升级过程，帮助大家平滑迁移。EMT4J已经开源，大家可以访问[EMT4J官网](https://github.com/adoptium/emt4j) 试用
 
 ### 参数调优
-- -XX:-UseBarriersForVolatile 此参数关闭UseBarriersForVolatile选项，适用于JDK11/8，JDK17无需设置。UseBarriersForVolatile控制如何实现volatile变量，关闭后会使用带同步语义的内存问指令操作volatile，开启后会使用普通内存访问指令再加上内存屏障指令访问volatile，后者相对低效。虽然这个参数是默认关闭的，但是在某些OS设置下会自动打开影响性能，，因此建议添加参数手动关闭这个选项。
+- -XX:-UseBarriersForVolatile 此参数关闭UseBarriersForVolatile选项，适用于JDK11/8，JDK17无需设置。UseBarriersForVolatile控制如何实现volatile变量，关闭后会使用带同步语义的内存问指令操作volatile，开启后会使用普通内存访问指令再加上内存屏障指令访问volatile，后者相对低效。虽然这个参数是默认关闭的，但是在某些OS设置下会自动打开影响性能，，因此建议添加参数手动关闭这个选项。注：运行在Alinux3上的JDK会默认关闭这个选项。
 - -XX:-TieredCompilation，此参数关闭分层编译。关闭分层编译可以减少JVM动态生成代码数目，提高icache/iTLB命中率。此优化适用于场景较为固定，流量较为稳定的应用使用。对于可能频繁执行新代码或是流量经常发生突变的应用可能出现编译开销过大的情况，不推荐设置。
 - -XX:ReservedCodeCacheSize=240m 仅推荐JDK8使用。此参数用来调整CodeCache大小，由于JDK8中ARM默认的CodeCache为128M，少于X86架构的240M，因此在使用默认参数的话ARM平台一些情况下可能会由于CodeCache使用率过高导致一些性能问题。此参数将默认的CodeCacheSize设置成240M，与X86架构一致。特别注意如果当前Java运行参数已经设置过ReservedCodeCacheSize则不要再次设置。

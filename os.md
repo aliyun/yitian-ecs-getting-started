@@ -14,7 +14,7 @@
 | 静态语言 | rust 1.45 到1.54 ， golang 1.12 到1.16 | 同Alinux3 | golang-1.4 |  |
 | 软件包分发工具 | yum | yum | yum |  |
 | 时间服务 | chrony-4.1 | chrony-4.1 | ntp, chrony-3.4 |  |
-| ARM | ARM兼容性 | Yitian710，Intel SPR，龙蜥生态硬件（龙芯等） | 同Alinux3 | 7.9开始兼容ARM，社区未成熟运行 |
+| ARM兼容性 |  Yitian710，Intel SPR，龙蜥生态硬件（龙芯等） | 同Alinux3 | 7.9开始兼容ARM，社区未成熟运行 |
 | 芯片支持 |  |  |  | 建议8.4以上版本 |
 | ARM基础能力 | 阿里倚天710支持特性：DDR PMU、PCIe PMU驱动支持、CMN-700、RAS | 同左 | NA |  |
 |  | ARM架构支持ARM SPE perf memory profiling/c2c特性 |  |  |  |

@@ -87,6 +87,7 @@ Java工程常用的构建工具如maven等均为架构无关，因此这方面�
 - Java8/11/17 以及未来的21是Long-term support(LTS)，维护时间长，其余为non-LTS，维护期短。Long-term support(LTS) 是Oracle管理Java版本生命周期的一个标准术语，Oracle原定每三年会指定一个LTS的Java版本，现在改成每两年。具体请参阅 https://www.oracle.com/java/technologies/java-se-support-roadmap.html
 - ARM架构支持在Java9才被OpenJDK社区接受进入主干，因此以JDK9为分水岭，之后的JDK11/17对ARM支持较好，而JDK8尽管近两年页开始支持ARM，但相对11/17仍有所欠缺。阿里内部场景显示，从JDK8升级到JDK11有5%-20%不等的性能提升。
 - 阿里巴巴内部场景显示社区JDK8对弱内存模型支持存在一定问题，JDK11可以解决。此外Albiaba Dragonwell8也解决了弱内存模型相关问题
+- 如果只能使用JDK8，请务必升级到8u292及以上版本。因为从292版本OpenJDK8社区主干才支持ARM架构，早于292的JDK8在ARM架构服务器可能存在不可预知的问题
 
 JDK11相对JDK8改动较大，存在一定的升级工作量。为了解决这个问题阿里云提供了专项升级工具EMT4J(Eclipse Migration Toolkit for Java)，可以大大加速不同JDK长期支持版本(8/11/17)的升级过程，帮助大家平滑迁移。EMT4J已经开源，大家可以访问[EMT4J官网](https://github.com/adoptium/emt4j) 试用
 

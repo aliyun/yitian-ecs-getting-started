@@ -128,6 +128,10 @@
       <td>JDK11</td>
    </tr>
    <tr>
+      <td>JDK8</td>
+      <td>8u292+</td>
+   </tr>
+   <tr>
       <td>Golang</td>
       <td>Go 1.18+</td>
    </tr>

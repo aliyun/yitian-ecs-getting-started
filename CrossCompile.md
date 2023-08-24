@@ -197,7 +197,7 @@ file test_connection
 
 在如下dockerfile中，首先在构建镜像中拉取代码并构建可执行文件，随后将可执行文件复制到精简的alinux3环境中。根据构建时不同的参数，该dockerfile可无需修改内容生成支持x86和aarch64架构的应用镜像。
 
-构建参数：docker build --platform=linux/amd64或docker build --platform=linux/arm64
+构建参数：docker buildx build --platform=linux/amd64或docker buildx build --platform=linux/arm64
 ```shell
 FROM alibaba-cloud-linux-3-registry.cn-hangzhou.cr.aliyuncs.com/alinux3/golang:1.19.4 as builder
 

@@ -201,7 +201,7 @@ file test_connection
 ```shell
 FROM alibaba-cloud-linux-3-registry.cn-hangzhou.cr.aliyuncs.com/alinux3/golang:1.19.4 as builder
 
-RUN yum install -y git && git clone https://github.com/gogs/gogs.git
+RUN yum install -y git && cd / && git clone https://github.com/gogs/gogs.git
 
 WORKDIR /gogs
 

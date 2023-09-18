@@ -103,8 +103,7 @@ aarch64
 使用 [2](#Zt8Or) 中构建出来的容器编译并运行 nginx（aarch64 版本）
 ```shell
 # 进入容器
-[root@anolis88 ~]# docker run -it --rm --privileged arm-on-x86/ax:1  /bin/bash
-Emulate Docker CLI using podman. Create /etc/containers/nodocker to quiet msg.
+[root@anolis88 ~]# docker run -it --rm --platform linux/arm64 --privileged arm-on-x86/ax:1 /bin/bash
 [root@2eccae6011ea /]#
 
 # 下载/解压/编译/安装 Nginx

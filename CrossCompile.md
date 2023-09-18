@@ -272,7 +272,7 @@ npm init -y vite-plugin-ssr
 ```shell
 FROM alibaba-cloud-linux-3-registry.cn-hangzhou.cr.aliyuncs.com/alinux3/node:16.17.1-nslt
 
-COPY --chown=node vite-ssr-project /nodejs-vitest
+COPY --chown=node vite-plugin-ssr /nodejs-vitest
 WORKDIR /nodejs-vitest
 
 RUN yarn install

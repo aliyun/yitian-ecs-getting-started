@@ -103,8 +103,7 @@ aarch64
 使用 [2](#Zt8Or) 中构建出来的容器编译并运行 nginx（aarch64 版本）
 ```shell
 # 进入容器
-[root@anolis88 ~]# docker run -it --rm --privileged arm-on-x86/ax:1  /bin/bash
-Emulate Docker CLI using podman. Create /etc/containers/nodocker to quiet msg.
+[root@anolis88 ~]# docker run -it --rm --platform linux/arm64 --privileged arm-on-x86/ax:1 /bin/bash
 [root@2eccae6011ea /]#
 
 # 下载/解压/编译/安装 Nginx
@@ -201,7 +200,7 @@ file test_connection
 ```shell
 FROM alibaba-cloud-linux-3-registry.cn-hangzhou.cr.aliyuncs.com/alinux3/golang:1.19.4 as builder
 
-RUN yum install -y git && git clone https://github.com/gogs/gogs.git
+RUN yum install -y git && cd / && git clone https://github.com/gogs/gogs.git
 
 WORKDIR /gogs
 
@@ -272,7 +271,7 @@ npm init -y vite-plugin-ssr
 ```shell
 FROM alibaba-cloud-linux-3-registry.cn-hangzhou.cr.aliyuncs.com/alinux3/node:16.17.1-nslt
 
-COPY --chown=node vite-ssr-project /nodejs-vitest
+COPY --chown=node vite-plugin-ssr /nodejs-vitest
 WORKDIR /nodejs-vitest
 
 RUN yarn install

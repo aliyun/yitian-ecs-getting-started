@@ -2,9 +2,9 @@ C/C++属于静态编译语言，C/C++编译则是将源代码经由编译器、�
 ## C/C++代码迁移
 C/C++工程一般包含两类文件：C/C++源码(.h, .hpp, .c, .cpp, .cc...)，构建脚本(Makefile, CMakeLists.txt, .bazelrc...)。构建脚本中涉及的迁移内容主要是用于指定数据类型、处理器架构、代码生成等的编译选项；而C/C++源码中涉及的迁移内容则主要是平台架构&指令相关的宏，builtin函数，intrinsic函数以及内联汇编
 - 构建脚本迁移
-  - 指定代码生成为64bit， 从-m64 换成-mabi=lp64
-  - char类型有无符号的变化，aarch64上要添加-fsigned-char
-  - 指定处理器架构的选项march mtune mcpu换成-march=armv8-a+sve2 -mcpu=neoverse-n1
+  - 指定代码生成为64bit， 从 `-m64` 换成 `-mabi=lp64`
+  - 大多数 x86 编译器将 char 类型默认为无符号的，而在 aarch64 下通常 char 类型默认为有符号的，在迁移过程中，需要确保 char 被当作有符号类型处理，因此 aarch64 上要添加 `-fsigned-char`
+  - 指定处理器架构的选项march mtune mcpu换成 `-march=armv8-a+sve2 -mcpu=neoverse-n1`
 - 源码迁移
   - 宏相关  
     1) 指定平台架构相关的宏定义：如`__x86_64`和`__amd64`等X86相关宏需要换成`__aarch64__`  

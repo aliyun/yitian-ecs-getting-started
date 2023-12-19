@@ -49,7 +49,7 @@ C/C++工程一般包含两类文件：C/C++源码(.h, .hpp, .c, .cpp, .cc...)，
 
   1.1. `CMAKE_EXPORT_COMPILE_COMMANDS=ON` (CMake >= 3.5)
 
-    在构建时设置 `CMAKE_EXPORT_COMPILE_COMMANDS` 变量为 `ON`。可以在 CMakeLists.txt 中添加 `set(CMAKE_EXPORT_COMPILE_COMMANDS ON)` 设置，或者在运行 CMake 时传递 `-DCMAKE_EXPORT_COMPILE_COMMANDS=ON` 参数。CMake 会在构建目录中生成 `compile_commands.json` 文件。
+    在构建时设置 `CMAKE_EXPORT_COMPILE_COMMANDS` 变量为 `ON`。可以在 CMakeLists.txt 中添加 `set(CMAKE_EXPORT_COMPILE_COMMANDS ON)` 设置，或者在运行 CMake 时传递 `-DCMAKE_EXPORT_COMPILE_COMMANDS=ON` 参数。CMake 会在构建目录中生成 `compile_commands.json` 文件。该方案不需要实际运行构建。
 
   1.2. [Bear](https://github.com/rizsotto/Bear) (Make / CMake / Ninja)
 
@@ -67,5 +67,55 @@ C/C++工程一般包含两类文件：C/C++源码(.h, .hpp, .c, .cpp, .cc...)，
     
     使用方法：对于 Make：在执行 make 命令时，添加 VERBOSE=1 参数，例如 make VERBOSE=1。这会打印出更详细的构建过程信息。
     对于 CMake：在构建时设置 `CMAKE_VERBOSE_MAKEFILE` 变量为 `ON`。可以在 CMakeLists.txt 中添加 `set(CMAKE_VERBOSE_MAKEFILE ON)` 设置，或者在运行 CMake 时传递 `-DCMAKE_VERBOSE_MAKEFILE=ON` 参数。这同样会让构建过程输出详细信息。
+
+### 使用案例
+
+以 opencv 为例，说明以上各种方式的用法及输出。
+1. 首先获取 opencv 源码，同时创建构建环境。
+
+    ```
+    git clone --depth=1 https://github.com/opencv/opencv.git
+    mkdir build
+    cd build
+    ```
+
+2. 使用 `-DCMAKE_EXPORT_COMPILE_COMMANDS=ON` 生成编译数据库
+
+    ```
+    cmake ../opencv -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+    # 在 cmake 配置完成后即可在当前目录下看到 `compile_commands.json`
+    # 确认每个命令中都包含 `-fsigned-char` 参数
+    jq '[.[] | .command | contains("-fsigned-char")] | all' compile_commands.json
+    # 输出 true，说明 opencv 已正确添加了 `-fsigned-char` 参数。
+    ```
+
+3. 或使用 `bear` 生成编译数据库
+
+    ```
+    # AnolisOS / CentOS 上安装 bear
+    yun install -y bear
+    # Ubuntu 上安装 bear
+    cmake ../opencv
+    bear -- make -j
+    jq '[.[] | .command | contains("-fsigned-char")] | all' compile_commands.json
+    ```
+
+4. 或通过构建日志判断
+
+    ```
+    cmake ../opencv -DCMAKE_VERBOSE_MAKEFILE=ON
+    make
+    # 或
+    cmake ../opencv
+    make VERBOSE=1
+    ```
+    输出类似：
+    ```
+    ...
+    [  0%] Building C object 3rdparty/libjpeg-turbo/src/simd/CMakeFiles/jsimd.dir/arm/jcgray-neon.c.o
+    <具体的编译命令，由于过长省略>
+    ...
+    ```
+    在编译日志里可以看到具体使用的参数。
 
 通过以上几种方法，可以确定在实际的编译中是否使用了特定的参数，从而更好地指导迁移。

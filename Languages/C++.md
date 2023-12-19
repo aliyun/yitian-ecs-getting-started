@@ -65,7 +65,11 @@ C/C++工程一般包含两类文件：C/C++源码(.h, .hpp, .c, .cpp, .cc...)，
 
   2.1. `VERBOSE=1` (Make / CMake)
     
-    使用方法：对于 Make：在执行 make 命令时，添加 VERBOSE=1 参数，例如 make VERBOSE=1。这会打印出更详细的构建过程信息。
+    使用方法：对于 Make：在执行 make 命令时，添加 `VERBOSE=1` 参数，例如 `make VERBOSE=1`。这会打印出更详细的构建过程信息。也可使用环境变量控制该行为，方便无法修改构建环境的场景：
+    ```
+    export VERBOSE=1
+    make
+    ```
     对于 CMake：在构建时设置 `CMAKE_VERBOSE_MAKEFILE` 变量为 `ON`。可以在 CMakeLists.txt 中添加 `set(CMAKE_VERBOSE_MAKEFILE ON)` 设置，或者在运行 CMake 时传递 `-DCMAKE_VERBOSE_MAKEFILE=ON` 参数。这同样会让构建过程输出详细信息。
 
 ### 使用案例

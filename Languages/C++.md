@@ -99,6 +99,7 @@ C/C++工程一般包含两类文件：C/C++源码(.h, .hpp, .c, .cpp, .cc...)，
     # AnolisOS / CentOS 上安装 bear
     yun install -y bear
     # Ubuntu 上安装 bear
+    apt-get install -y bear
     cmake ../opencv
     bear -- make -j
     jq '[.[] | .command | contains("-fsigned-char")] | all' compile_commands.json

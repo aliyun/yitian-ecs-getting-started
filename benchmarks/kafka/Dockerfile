@@ -1,4 +1,4 @@
-FROM dragonwell-registry.cn-hangzhou.cr.aliyuncs.com/dragonwell/dragonwell:11-ubuntu as jdk
+FROM dragonwell-registry.cn-hangzhou.cr.aliyuncs.com/dragonwell/dragonwell:11-ubuntu AS jdk
 
 FROM ubuntu/kafka
 WORKDIR /opt/kafka/
